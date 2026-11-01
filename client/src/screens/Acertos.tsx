@@ -71,9 +71,11 @@ export function Acertos({ view, onMenu }: { view: RoomView; onMenu: () => void }
                     +1
                   </span>
                 )}
-                <span className="judge-box" aria-hidden="true">
-                  {on && <Icon name="check" size={16} stroke={3.6} />}
-                </span>
+                {isJudge && (
+                  <span className="judge-box" aria-hidden="true">
+                    {on && <Icon name="check" size={16} stroke={3.6} />}
+                  </span>
+                )}
               </>
             );
             return (
