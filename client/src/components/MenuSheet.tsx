@@ -3,10 +3,11 @@ import type { RoomView } from '../../../shared/types';
 import { sound } from '../lib/sound';
 import { useGame } from '../state/game';
 import { Icon, type IconName } from './Icon';
+import { PhotoSheet } from './Photo';
 import { QrCard } from './QrCard';
 import { Rules, Sheet } from './Sheet';
 
-type Mode = 'menu' | 'rules' | 'invite' | 'leave' | 'end';
+type Mode = 'menu' | 'rules' | 'invite' | 'photo' | 'leave' | 'end';
 
 function Item({ icon, tone, label, onClick }: { icon: IconName; tone?: string; label: string; onClick: () => void }) {
   return (
@@ -58,6 +59,11 @@ export function MenuSheet({ view, onClose, initial = 'menu' }: { view: RoomView;
     );
   }
 
+  if (mode === 'photo') {
+    const me = view.players.find((p) => p.id === view.youId);
+    return <PhotoSheet color={me?.color ?? '#FFFDF7'} initial="V" onClose={onClose} />;
+  }
+
   if (mode === 'leave') {
     return (
       <Sheet title="Sair da sala?" onClose={onClose}>
@@ -104,6 +110,7 @@ export function MenuSheet({ view, onClose, initial = 'menu' }: { view: RoomView;
     <Sheet title="Menu" onClose={onClose}>
       <div className="menu-list">
         {view.status !== 'lobby' && <Item icon="invite" label="Convidar mais gente" onClick={() => setMode('invite')} />}
+        <Item icon="camera" tone="paper" label="Foto de perfil" onClick={() => setMode('photo')} />
         <Item icon="help" tone="yellow" label="Como jogar" onClick={() => setMode('rules')} />
         <Item
           icon={muted ? 'soundOff' : 'soundOn'}

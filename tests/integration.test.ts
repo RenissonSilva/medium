@@ -161,6 +161,32 @@ describe('partida pela rede', () => {
     if (!res.ok) expect(res.error).toBe('ROOM_NOT_FOUND');
   });
 
+  it('foto de perfil vai junto ao entrar e pode ser trocada na sala', async () => {
+    const host = phone();
+    const guest = phone();
+    const photo = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]).toString('base64')}`;
+    const created = await send<{ code: string }>(host.socket, 'room:create', { name: 'Nina', clientId: 'nina-client-01', photo });
+    const code = (created as { code: string }).code;
+    // Foto que não serve não impede de entrar.
+    const joined = await send(guest.socket, 'room:join', { code, name: 'Davi', clientId: 'davi-client-01', photo: 'lixo' });
+    expect(joined.ok).toBe(true);
+    const view = await guest.waitFor((v) => v.players.length === 2);
+    const [nina, davi] = view.players;
+    expect(nina.photo).toMatch(new RegExp(`^/api/photo/${code}/${nina.id}/[A-Za-z0-9_-]{16}$`));
+    expect(davi.photo).toBeNull();
+    const hash = nina.photo!.split('/').pop()!;
+    expect(manager.photo(code, nina.id, hash)?.data.equals(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]))).toBe(true);
+
+    const bad = await send(guest.socket, 'room:photo', { photo: 'data:image/jpeg;base64,AAAA' });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.error).toBe('BAD_INPUT');
+    expect((await send(guest.socket, 'room:photo', { photo })).ok).toBe(true);
+    await host.waitFor((v) => v.players[1].photo !== null);
+    expect((await send(host.socket, 'room:photo', { photo: null })).ok).toBe(true);
+    await guest.waitFor((v) => v.players[0].photo === null);
+    expect(manager.photo(code, nina.id, hash)).toBeUndefined();
+  });
+
   it('remover jogador avisa o celular dele', async () => {
     const host = phone();
     const guest = phone();

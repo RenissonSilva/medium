@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MAX_PLAYERS, MIN_PLAYERS, ROUND_OPTIONS, type RoomView } from '../../../shared/types';
 import { Icon } from '../components/Icon';
+import { PhotoSheet } from '../components/Photo';
 import { QrCard } from '../components/QrCard';
 import { Avatar, BottomBar, WaitBox } from '../components/ui';
 import { nameOf } from '../lib/text';
@@ -9,6 +10,8 @@ import { useGame } from '../state/game';
 export function Sala({ view, onMenu }: { view: RoomView; onMenu: () => void }) {
   const { send, toast } = useGame();
   const [busy, setBusy] = useState(false);
+  const [photoSheet, setPhotoSheet] = useState(false);
+  const me = view.players.find((p) => p.id === view.youId);
   const isAdmin = view.adminId === view.youId;
   const admin = view.players.find((p) => p.id === view.adminId);
   const enough = view.players.length >= MIN_PLAYERS;
@@ -46,7 +49,21 @@ export function Sala({ view, onMenu }: { view: RoomView; onMenu: () => void }) {
       <ul className="players" aria-labelledby="lista-jogadores">
         {view.players.map((p) => (
           <li key={p.id} className={p.connected ? 'player-row' : 'player-row away'}>
-            <Avatar player={p} youId={view.youId} />
+            {p.id === view.youId ? (
+              <button
+                type="button"
+                className="avatar-btn"
+                aria-label={p.photo ? 'Sua foto de perfil: trocar ou tirar' : 'Colocar foto de perfil'}
+                onClick={() => setPhotoSheet(true)}
+              >
+                <Avatar player={p} youId={view.youId} />
+                <span className="avatar-cam" aria-hidden="true">
+                  <Icon name="camera" size={10} stroke={3} />
+                </span>
+              </button>
+            ) : (
+              <Avatar player={p} youId={view.youId} />
+            )}
             <span className="player-name">{nameOf(p, view.youId)}</span>
             {p.id === view.hostId && <span className="tag">Anfitrião</span>}
             {!p.connected && <span className="tag off">Offline</span>}
@@ -109,6 +126,8 @@ export function Sala({ view, onMenu }: { view: RoomView; onMenu: () => void }) {
           <WaitBox>Esperando {admin ? admin.name : 'o anfitrião'} começar</WaitBox>
         )}
       </BottomBar>
+
+      {photoSheet && <PhotoSheet color={me?.color ?? '#FFFDF7'} initial="V" onClose={() => setPhotoSheet(false)} />}
     </main>
   );
 }

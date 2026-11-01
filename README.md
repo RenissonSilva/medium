@@ -6,6 +6,7 @@ Uma palavra sai do baralho, alguém junta uma da própria mão, e todo mundo ten
 
 ## Como se joga
 
+0. Digite seu nome e, se quiser, toque na bolinha ao lado para colocar uma **foto de perfil** (da galeria ou tirada na hora). Não precisa de login: a foto fica salva no navegador e vai junto quando você entra numa sala. Dá para trocar depois pelo menu ou tocando na sua bolinha na sala.
 1. Alguém cria a sala e mostra o **QR code** (ou passa o código de 4 letras). Quem lê o QR code cai direto na sala.
 2. O anfitrião escolhe quantas rodadas (5, 10, 15 ou 20) e aperta **Iniciar jogo**. Cada jogador recebe 5 palavras.
 3. Uma palavra sai do baralho. Cada um pode escolher, da própria mão, uma palavra que combine com ela — vale a de quem confirmar primeiro, e a rodada começa na hora.
@@ -61,7 +62,7 @@ docker build -t medium .
 docker run -p 3000:3000 medium
 ```
 
-**Importante:** as salas ficam na memória do servidor. Rode **uma instância só** (sem réplicas) e saiba que reiniciar o servidor encerra as salas abertas.
+**Importante:** as salas (e as fotos de perfil dos jogadores) ficam na memória do servidor. Rode **uma instância só** (sem réplicas) e saiba que reiniciar o servidor encerra as salas abertas.
 
 ### Câmera dentro do jogo
 

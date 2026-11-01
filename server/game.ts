@@ -14,6 +14,7 @@ import {
   type RoomStatus,
   type RoomView,
 } from '../shared/types';
+import type { Photo } from './photo';
 import { WORDS } from './words';
 
 export class GameError extends Error {
@@ -50,6 +51,7 @@ export interface Player {
   clientId: string;
   name: string;
   color: string;
+  photo: Photo | null;
   score: number;
   hand: Card[];
   sockets: Set<string>;
@@ -151,12 +153,16 @@ export class Room {
     return this.players.filter((p) => p.sockets.size > 0);
   }
 
-  /** Entra na sala, ou volta para o mesmo lugar se o `clientId` já estiver nela. */
-  join(clientId: string, rawName: string): Player {
+  /**
+   * Entra na sala, ou volta para o mesmo lugar se o `clientId` já estiver nela.
+   * `photo`: undefined mantém a foto atual, null tira.
+   */
+  join(clientId: string, rawName: string, photo?: Photo | null): Player {
     const name = cleanName(rawName);
     const existing = this.findByClient(clientId);
     if (existing) {
       if (name && !sameName(name, existing.name)) existing.name = this.uniqueName(name, existing.id);
+      if (photo !== undefined) existing.photo = photo;
       this.touch();
       return existing;
     }
@@ -169,6 +175,7 @@ export class Room {
       clientId,
       name: this.uniqueName(name),
       color: this.freeColor(),
+      photo: photo ?? null,
       score: 0,
       hand: [],
       sockets: new Set(),
@@ -225,6 +232,19 @@ export class Room {
 
   requireAdmin(by: string): void {
     if (this.adminId() !== by) throw new GameError('NOT_ALLOWED', 'Só quem criou a sala pode fazer isso.');
+  }
+
+  setPhoto(by: string, photo: Photo | null): void {
+    const player = this.find(by);
+    if (!player) throw new GameError('NOT_IN_ROOM', 'Você não está nesta sala.');
+    player.photo = photo;
+    this.touch();
+  }
+
+  /** A foto de um jogador, se o endereço pedido ainda for o da foto atual. */
+  photoOf(playerId: string, hash: string): Photo | undefined {
+    const photo = this.find(playerId)?.photo;
+    return photo && photo.hash === hash ? photo : undefined;
   }
 
   setRounds(by: string, rounds: number): void {
@@ -378,6 +398,7 @@ export class Room {
         id: p.id,
         name: p.name,
         color: p.color,
+        photo: p.photo ? `/api/photo/${this.code}/${p.id}/${p.photo.hash}` : null,
         score: p.score,
         connected: this.isConnected(p),
       })),

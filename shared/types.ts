@@ -9,6 +9,10 @@ export const CODE_LENGTH = 4;
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const ROUND_OPTIONS = [5, 10, 15, 20] as const;
 export const DEFAULT_ROUNDS = 10;
+/** Lado (px) da foto de perfil quadrada que o celular gera antes de enviar. */
+export const PHOTO_SIZE = 240;
+/** Tamanho máximo da foto já reduzida (JPEG). */
+export const PHOTO_MAX_BYTES = 48 * 1024;
 
 /** Cor do avatar de cada jogador, na ordem em que entram na sala. */
 export const PLAYER_COLORS = [
@@ -38,6 +42,8 @@ export interface PlayerView {
   id: string;
   name: string;
   color: string;
+  /** Endereço da foto de perfil (muda quando a foto muda), ou null para mostrar a inicial. */
+  photo: string | null;
   score: number;
   connected: boolean;
 }
@@ -114,8 +120,13 @@ type Reply<T extends object = object> = (res: Ack<T>) => void;
 
 export interface ClientToServerEvents {
   'time:ping': (reply: (serverNow: number) => void) => void;
-  'room:create': (p: { name: string; clientId: string }, reply: Reply<{ code: string }>) => void;
-  'room:join': (p: { code: string; name: string; clientId: string }, reply: Reply<{ code: string }>) => void;
+  /** `photo`: data URL JPEG; null tira a foto; sem o campo, mantém a que está. */
+  'room:create': (p: { name: string; clientId: string; photo?: string | null }, reply: Reply<{ code: string }>) => void;
+  'room:join': (
+    p: { code: string; name: string; clientId: string; photo?: string | null },
+    reply: Reply<{ code: string }>,
+  ) => void;
+  'room:photo': (p: { photo: string | null }, reply: Reply) => void;
   'room:leave': (reply: Reply) => void;
   'room:rounds': (p: { rounds: number }, reply: Reply) => void;
   'room:kick': (p: { playerId: string }, reply: Reply) => void;

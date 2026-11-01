@@ -8,6 +8,7 @@ import {
   type ServerToClientEvents,
 } from '../shared/types';
 import { GameError, Room, cleanName, type Player, type RoomDeps } from './game';
+import { parsePhoto, type Photo } from './photo';
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>;
 type Sock = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -71,7 +72,7 @@ export class RoomManager {
         this.releaseSocket(socket);
         this.leaveOtherRooms(clientId, null);
         const room = this.createRoom();
-        const player = room.join(clientId, name);
+        const player = room.join(clientId, name, this.photoOnEntry(p));
         this.seat(socket, room, player);
         this.broadcastSoon(room);
         return { code: room.code };
@@ -87,7 +88,7 @@ export class RoomManager {
         const current = this.seats.get(socket.id);
         if (current && current.code !== room.code) this.releaseSocket(socket);
         this.leaveOtherRooms(clientId, room.code);
-        const player = room.join(clientId, name);
+        const player = room.join(clientId, name, this.photoOnEntry(p));
         this.seat(socket, room, player);
         this.broadcastSoon(room);
         return { code: room.code };
@@ -111,6 +112,9 @@ export class RoomManager {
       }),
     );
 
+    socket.on('room:photo', (p, reply) =>
+      this.act(socket, reply, (room, me) => room.setPhoto(me.id, parsePhoto(p?.photo) ?? null)),
+    );
     socket.on('room:rounds', (p, reply) => this.act(socket, reply, (room, me) => room.setRounds(me.id, Number(p?.rounds))));
     socket.on('game:start', (reply) => this.act(socket, reply, (room, me) => room.start(me.id)));
     socket.on('game:pick', (p, reply) =>
@@ -176,6 +180,20 @@ export class RoomManager {
       throw new GameError('BAD_INPUT', 'Identificação inválida. Recarregue a página.');
     }
     return { clientId: obj.clientId, name: cleanName(obj.name) };
+  }
+
+  /** Foto mandada junto com criar/entrar. Se não servir, entra assim mesmo (com a foto que já tinha). */
+  private photoOnEntry(p: unknown): Photo | null | undefined {
+    try {
+      return parsePhoto((p as { photo?: unknown } | null)?.photo);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Para o servidor HTTP entregar a foto de perfil de um jogador. */
+  photo(code: string, playerId: string, hash: string): Photo | undefined {
+    return this.rooms.get(code)?.photoOf(playerId, hash);
   }
 
   private createRoom(): Room {

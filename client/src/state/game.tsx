@@ -6,7 +6,7 @@ import { socket } from '../lib/socket';
 import { getClientId, storage } from '../lib/storage';
 
 export type Conn = 'connecting' | 'online' | 'offline';
-export type ActionEvent = Exclude<keyof ClientToServerEvents, 'time:ping' | 'room:create' | 'room:join'>;
+export type ActionEvent = Exclude<keyof ClientToServerEvents, 'time:ping' | 'room:create' | 'room:join' | 'room:photo'>;
 
 export interface ToastItem {
   id: number;
@@ -21,6 +21,10 @@ interface GameContext {
   joining: string | null;
   toasts: ToastItem[];
   toast: (text: string, kind?: 'info' | 'error') => void;
+  /** Sua foto de perfil (data URL), guardada neste navegador. */
+  photo: string | null;
+  /** Troca (ou tira, com null) a foto; se você está numa sala, todo mundo já vê a nova. */
+  setPhoto: (photo: string | null) => Promise<Ack>;
   create: (name: string) => Promise<Ack<{ code: string }>>;
   join: (code: string, name: string, opts?: { auto?: boolean }) => Promise<Ack<{ code: string }>>;
   leave: () => Promise<void>;
@@ -45,6 +49,8 @@ async function emit<T extends object = object>(event: keyof ClientToServerEvents
   }
 }
 
+const savedPhoto = () => storage.get('photo');
+
 /** "*" = acabei de pedir para criar uma sala e ainda não sei o código. */
 const ANY_ROOM = '*';
 
@@ -53,6 +59,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<RoomView | null>(null);
   const [joining, setJoining] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [photo, setPhotoState] = useState<string | null>(savedPhoto);
   const desired = useRef<{ code: string; name: string } | null>(null);
   const toastSeq = useRef(0);
 
@@ -76,7 +83,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const previous = desired.current;
     desired.current = { code, name };
     if (opts.auto) setJoining(code);
-    const res = await emit<{ code: string }>('room:join', { code, name, clientId: getClientId() });
+    const res = await emit<{ code: string }>('room:join', { code, name, clientId: getClientId(), photo: savedPhoto() });
     setJoining(null);
     if (res.ok) {
       storage.set('room', res.code);
@@ -91,7 +98,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const create = useCallback(async (name: string) => {
     const previous = desired.current;
     desired.current = { code: ANY_ROOM, name };
-    const res = await emit<{ code: string }>('room:create', { name, clientId: getClientId() });
+    const res = await emit<{ code: string }>('room:create', { name, clientId: getClientId(), photo: savedPhoto() });
     if (res.ok) {
       desired.current = { code: res.code, name };
       storage.set('room', res.code);
@@ -107,6 +114,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     forget();
   }, [forget]);
 
+  const setPhoto = useCallback(async (next: string | null): Promise<Ack> => {
+    // Fora da sala (ou sem internet) fica só guardada: vai junto ao entrar/reconectar.
+    if (desired.current && socket.connected) {
+      const res = await emit('room:photo', { photo: next });
+      if (!res.ok && res.error === 'BAD_INPUT') return res;
+    }
+    if (next) storage.set('photo', next);
+    else storage.remove('photo');
+    setPhotoState(next);
+    return { ok: true };
+  }, []);
+
   const send = useCallback(
     (event: ActionEvent, payload?: object) => (payload === undefined ? emit(event) : emit(event, payload)),
     [],
@@ -119,7 +138,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // Caiu e voltou (tela bloqueada, troca de rede…): volta para a mesma sala.
       const d = desired.current;
       if (d && d.code !== ANY_ROOM) {
-        void emit('room:join', { code: d.code, name: d.name, clientId: getClientId() }).then((res) => {
+        void emit('room:join', { code: d.code, name: d.name, clientId: getClientId(), photo: savedPhoto() }).then((res) => {
           if (!res.ok && res.error === 'ROOM_NOT_FOUND' && desired.current?.code === d.code) {
             forget();
             toast('Essa sala não existe mais.', 'error');
@@ -184,8 +203,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [code]);
 
   const value = useMemo<GameContext>(
-    () => ({ conn, view, joining, toasts, toast, create, join, leave, send }),
-    [conn, view, joining, toasts, toast, create, join, leave, send],
+    () => ({ conn, view, joining, toasts, toast, photo, setPhoto, create, join, leave, send }),
+    [conn, view, joining, toasts, toast, photo, setPhoto, create, join, leave, send],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -4,13 +4,21 @@ import { initialOf, nameOf, plural } from '../lib/text';
 import { useVs } from '../lib/viewport';
 import { Dots, Icon } from './Icon';
 
-export function Avatar({ player, youId, className }: { player: PlayerView | undefined; youId: string; className?: string }) {
-  const initial = !player ? '?' : player.id === youId ? 'V' : initialOf(player.name);
+/** Bolinha do jogador: a foto de perfil, ou a inicial na cor dele. */
+export function Face({ photo, color, initial, className }: { photo: string | null; color: string; initial: string; className?: string }) {
+  // Se a foto não carregar, mostra a inicial no lugar.
+  const [broken, setBroken] = useState<string | null>(null);
+  const show = !!photo && photo !== broken;
   return (
-    <span aria-hidden="true" className={`avatar ${className ?? ''}`} style={{ background: player?.color ?? '#FFFDF7' }}>
-      {initial}
+    <span aria-hidden="true" className={`avatar ${show ? 'has-photo' : ''} ${className ?? ''}`} style={{ background: color }}>
+      {show ? <img src={photo} alt="" draggable={false} onError={() => setBroken(photo)} /> : initial}
     </span>
   );
+}
+
+export function Avatar({ player, youId, className }: { player: PlayerView | undefined; youId: string; className?: string }) {
+  const initial = !player ? '?' : player.id === youId ? 'V' : initialOf(player.name);
+  return <Face photo={player?.photo ?? null} color={player?.color ?? '#FFFDF7'} initial={initial} className={className} />;
 }
 
 export function GameHeader({ title, subtitle, onMenu }: { title: string; subtitle: string; onMenu: () => void }) {

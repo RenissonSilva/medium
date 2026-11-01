@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { NAME_MAX } from '../../../shared/types';
 import { Icon, Sparkle } from '../components/Icon';
+import { PhotoSheet, usePhotoPicker } from '../components/Photo';
 import { BottomBar, Scaled } from '../components/ui';
 import { storage } from '../lib/storage';
+import { initialOf } from '../lib/text';
+import { useGame } from '../state/game';
 
 function Hero() {
   return (
@@ -36,6 +39,9 @@ interface Props {
 }
 
 export function Inicio({ invite, busy, onCreate, onJoinScreen, onJoinInvite }: Props) {
+  const { photo } = useGame();
+  const picker = usePhotoPicker();
+  const [photoSheet, setPhotoSheet] = useState(false);
   const [name, setName] = useState(() => storage.get('name') ?? '');
   const clean = name.trim();
   const ok = clean.length > 0;
@@ -69,20 +75,42 @@ export function Inicio({ invite, busy, onCreate, onJoinScreen, onJoinInvite }: P
         <label htmlFor="nome-jogador" className="label">
           Seu nome
         </label>
-        <input
-          id="nome-jogador"
-          className="text-input"
-          type="text"
-          value={name}
-          maxLength={NAME_MAX}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Como a galera te chama?"
-          autoComplete="nickname"
-          autoCapitalize="words"
-          spellCheck={false}
-          enterKeyHint={invite ? 'go' : 'done'}
-        />
+        <div className="name-row">
+          {/* Sem foto: abre direto a galeria/câmera. Com foto: dá para trocar ou tirar. */}
+          <button
+            type="button"
+            className={photo ? 'photo-btn has-photo' : 'photo-btn'}
+            aria-label={photo ? 'Foto de perfil: trocar ou tirar' : 'Escolher foto de perfil'}
+            disabled={picker.busy}
+            onClick={photo ? () => setPhotoSheet(true) : picker.open}
+          >
+            {photo ? <img src={photo} alt="" draggable={false} /> : <Icon name="camera" size={26} stroke={2.4} />}
+            {!photo && (
+              <span className="photo-plus" aria-hidden="true">
+                <Icon name="plus" size={12} stroke={4} />
+              </span>
+            )}
+          </button>
+          <input
+            id="nome-jogador"
+            className="text-input"
+            type="text"
+            value={name}
+            maxLength={NAME_MAX}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Como a galera te chama?"
+            autoComplete="nickname"
+            autoCapitalize="words"
+            spellCheck={false}
+            enterKeyHint={invite ? 'go' : 'done'}
+          />
+        </div>
+        {picker.input}
       </form>
+
+      {photoSheet && (
+        <PhotoSheet color="#FFFDF7" initial={clean ? initialOf(clean) : '?'} onClose={() => setPhotoSheet(false)} />
+      )}
 
       <BottomBar>
         {invite ? (

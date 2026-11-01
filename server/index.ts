@@ -31,11 +31,26 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   destroyUpgrade: !isDev,
 });
 
-new RoomManager(io).attach();
+const rooms = new RoomManager(io);
+rooms.attach();
 
 app.get('/api/config', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({ publicUrl: PUBLIC_URL, lanUrls: lanUrls(PORT) });
+});
+// Foto de perfil. O hash no endereço muda junto com a foto, então dá para guardar em cache para sempre.
+app.get('/api/photo/:code/:player/:hash', (req, res) => {
+  const photo = rooms.photo(req.params.code, req.params.player, req.params.hash);
+  if (!photo) {
+    res.set('Cache-Control', 'no-store').status(404).end();
+    return;
+  }
+  res.set({
+    'Content-Type': 'image/jpeg',
+    'Cache-Control': 'private, max-age=31536000, immutable',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.send(photo.data);
 });
 app.get('/healthz', (_req, res) => {
   res.type('text').send('ok');

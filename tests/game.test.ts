@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { GameError, Room } from '../server/game';
+import { parsePhoto } from '../server/photo';
 import { WORDS } from '../server/words';
-import { HAND_SIZE, MAX_PLAYERS, type ErrorCode } from '../shared/types';
+import { HAND_SIZE, MAX_PLAYERS, PHOTO_MAX_BYTES, type ErrorCode } from '../shared/types';
+
+/** Um "JPEG" de mentira: só o começo que importa para a validação. */
+const jpeg = (fill: number, size = 64) =>
+  `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(size - 4, fill)]).toString('base64')}`;
 
 const NAMES = ['Rafa', 'Bia', 'Caio', 'Duda', 'Edu', 'Fê', 'Gui', 'Helô', 'Iara'];
 
@@ -310,5 +315,51 @@ describe('partida', () => {
     for (const card of players[0].hand) expect(view).not.toContain(`"${card.word}"`);
     for (const card of players[1].hand) expect(view).toContain(`"${card.word}"`);
     expect(view).not.toContain('client-');
+  });
+});
+
+describe('foto de perfil', () => {
+  it('aceita só JPEG pequeno em data URL', () => {
+    expect(parsePhoto(undefined)).toBeUndefined();
+    expect(parsePhoto(null)).toBeNull();
+    const ok = parsePhoto(jpeg(1));
+    expect(ok?.data.length).toBe(64);
+    expect(ok?.hash).toMatch(/^[A-Za-z0-9_-]{16}$/);
+    expect(parsePhoto(jpeg(1))?.hash).toBe(ok?.hash);
+    expect(parsePhoto(jpeg(2))?.hash).not.toBe(ok?.hash);
+    expect(parsePhoto(jpeg(1, PHOTO_MAX_BYTES))).toBeTruthy();
+
+    const png = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]).toString('base64')}`;
+    const fakeJpeg = `data:image/jpeg;base64,${Buffer.from('<script>alert(1)</script>').toString('base64')}`;
+    for (const bad of [png, fakeJpeg, jpeg(1, PHOTO_MAX_BYTES + 1), 'data:image/jpeg;base64,', 'oi', 42, {}]) {
+      expectError(() => parsePhoto(bad), 'BAD_INPUT');
+    }
+  });
+
+  it('fica com o jogador ao voltar, troca, sai, e aparece para todos com endereço novo a cada troca', () => {
+    const { room, players } = setup(2);
+    const first = parsePhoto(jpeg(1))!;
+    room.setPhoto(players[1].id, first);
+    const url = room.viewFor(players[0].id).players[1].photo;
+    expect(url).toBe(`/api/photo/TEST/${players[1].id}/${first.hash}`);
+    expect(room.viewFor(players[0].id).players[0].photo).toBeNull();
+    expect(room.photoOf(players[1].id, first.hash)).toBe(first);
+
+    // Reconectar sem mandar foto mantém a que estava.
+    room.join('client-1-abcdef', 'Bia');
+    expect(room.viewFor(players[1].id).players[1].photo).toBe(url);
+
+    const second = parsePhoto(jpeg(2))!;
+    room.join('client-1-abcdef', 'Bia', second);
+    expect(room.viewFor(players[0].id).players[1].photo).not.toBe(url);
+    // O endereço antigo deixa de funcionar.
+    expect(room.photoOf(players[1].id, first.hash)).toBeUndefined();
+
+    room.setPhoto(players[1].id, null);
+    expect(room.viewFor(players[0].id).players[1].photo).toBeNull();
+    expect(room.photoOf(players[1].id, second.hash)).toBeUndefined();
+
+    const late = room.join('client-late-abcdef', 'Duda', first);
+    expect(room.viewFor(late.id).players[2].photo).toContain(first.hash);
   });
 });
