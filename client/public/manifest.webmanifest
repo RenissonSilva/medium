@@ -1,0 +1,16 @@
+{
+  "name": "Medium — jogo de palavras",
+  "short_name": "Medium",
+  "description": "Uma palavra do baralho, uma da sua mão — e todo mundo fala junto.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2747D9",
+  "theme_color": "#2747D9",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
