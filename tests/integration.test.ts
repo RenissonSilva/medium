@@ -86,14 +86,22 @@ describe('partida pela rede', () => {
 
     const r1 = await rafa.waitFor((v) => v.game?.phase === 'choosing');
     const biaView = await bia.waitFor((v) => v.game?.phase === 'choosing');
+    const caioView = await caio.waitFor((v) => v.game?.phase === 'choosing');
     expect(r1.hand).toHaveLength(5);
-    expect(biaView.game!.chooserId).toBe(r1.youId);
+    expect(biaView.game!.chooserId).toBeNull();
     // Bia não enxerga as palavras do Rafa.
     for (const card of r1.hand) expect(JSON.stringify(biaView)).not.toContain(`"${card.word}"`);
 
-    const played = r1.hand[1].word;
-    expect((await send(rafa.socket, 'game:pick', { round: 1, word: played })).ok).toBe(true);
-    await caio.waitFor((v) => v.game?.phase === 'thinking' && v.game.playedWord === played);
+    // Qualquer um pode jogar: Bia e Caio confirmam quase juntos, só um leva.
+    const [pb, pc] = await Promise.all([
+      send(bia.socket, 'game:pick', { round: 1, word: biaView.hand[1].word }),
+      send(caio.socket, 'game:pick', { round: 1, word: caioView.hand[1].word }),
+    ]);
+    expect([pb.ok, pc.ok].sort()).toEqual([false, true]);
+    const [chooser, chooserView] = pb.ok ? [bia, biaView] : [caio, caioView];
+    const played = chooserView.hand[1].word;
+    const thinking = await rafa.waitFor((v) => v.game?.phase === 'thinking' && v.game.playedWord === played);
+    expect(thinking.game!.chooserId).toBe(chooserView.youId);
 
     for (const p of [rafa, bia, caio]) expect((await send(p.socket, 'game:ready', { round: 1, ready: true })).ok).toBe(true);
     const countdown = await bia.waitFor((v) => v.game?.phase === 'countdown');
@@ -102,8 +110,9 @@ describe('partida pela rede', () => {
     // A contagem termina sozinha no servidor.
     await caio.waitFor((v) => v.game?.phase === 'scoring');
     const biaId = biaView.youId;
-    const caioId = caio.view!.youId;
-    expect((await send(bia.socket, 'game:mark', { round: 1, playerId: biaId, on: true })).ok).toBe(false);
+    const caioId = caioView.youId;
+    // Quem jogou a palavra não marca: só o anfitrião.
+    expect((await send(chooser.socket, 'game:mark', { round: 1, playerId: biaId, on: true })).ok).toBe(false);
     expect((await send(rafa.socket, 'game:mark', { round: 1, playerId: biaId, on: true })).ok).toBe(true);
     expect((await send(rafa.socket, 'game:mark', { round: 1, playerId: caioId, on: true })).ok).toBe(true);
     await bia.waitFor((v) => v.game?.markedIds.length === 2);
@@ -111,8 +120,9 @@ describe('partida pela rede', () => {
 
     const result = await rafa.waitFor((v) => v.game?.phase === 'result');
     expect(result.players.map((p) => p.score)).toEqual([0, 1, 1]);
-    expect(result.hand).toHaveLength(5);
-    expect(result.game!.lastResult!.replacement!.replaced).toBe(played);
+    const after = await chooser.waitFor((v) => v.game?.phase === 'result');
+    expect(after.hand).toHaveLength(5);
+    expect(after.hand.map((c) => c.word)).not.toContain(played);
 
     // Os dois apertam "próxima rodada" quase juntos: só uma rodada avança.
     const [a, b] = await Promise.all([
@@ -121,7 +131,8 @@ describe('partida pela rede', () => {
     ]);
     expect([a.ok, b.ok].sort()).toEqual([false, true]);
     const r2 = await rafa.waitFor((v) => v.game?.round === 2);
-    expect(r2.game!.chooserId).toBe(biaId);
+    expect(r2.game!.phase).toBe('choosing');
+    expect(r2.game!.chooserId).toBeNull();
   });
 
   it('volta para o mesmo lugar depois de cair', async () => {

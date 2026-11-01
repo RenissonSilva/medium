@@ -54,12 +54,6 @@ const PATHS = {
       <path d="M12 17.2v.1" />
     </>
   ),
-  skip: (
-    <>
-      <path d="M5 5l10 7-10 7z" />
-      <path d="M19 5v14" />
-    </>
-  ),
   flag: (
     <>
       <path d="M5 21V4" />

@@ -8,7 +8,7 @@ import { upper } from '../lib/text';
 import { useVs } from '../lib/viewport';
 import { useGame } from '../state/game';
 
-/** 04 · Sua vez: escolha da mão uma palavra que combine com a do baralho. */
+/** 04 · Todo mundo escolhe da mão uma palavra que combine com a do baralho; vale a primeira jogada. */
 export function Escolha({ view, onMenu }: { view: RoomView; onMenu: () => void }) {
   const { send, toast } = useGame();
   const g = view.game!;
@@ -28,7 +28,8 @@ export function Escolha({ view, onMenu }: { view: RoomView; onMenu: () => void }
     const res = await send('game:pick', { round: g.round, word: picked });
     if (!res.ok) {
       setBusy(false);
-      toast(res.message, 'error');
+      // Alguém jogou primeiro: o estado novo chega em seguida.
+      if (res.error !== 'BAD_STATE') toast(res.message, 'error');
     }
   };
 
@@ -45,7 +46,7 @@ export function Escolha({ view, onMenu }: { view: RoomView; onMenu: () => void }
       </div>
 
       <div className="prompt">
-        <span className="badge">Sua vez</span>
+        <span className="badge">Rápido</span>
         <span className="prompt-text">O que combina com {deckWord}?</span>
       </div>
 
@@ -67,7 +68,7 @@ export function Escolha({ view, onMenu }: { view: RoomView; onMenu: () => void }
             </button>
           );
         })}
-        {view.hand.length === 0 && <p className="hint">Sua mão está vazia — peça para pular a vez pelo menu.</p>}
+        {view.hand.length === 0 && <p className="hint">Sua mão está vazia — espere alguém jogar uma palavra.</p>}
       </section>
 
       <BottomBar>

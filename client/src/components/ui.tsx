@@ -144,7 +144,7 @@ export function WordCard({
   );
 }
 
-/** Fichas do topo: placar (com quem está na vez em amarelo) ou quem já está pronto. */
+/** Fichas do topo: placar ou quem já está pronto. */
 export function ScoreChips({ view, mode }: { view: RoomView; mode: 'score' | 'ready' }) {
   const g = view.game;
   const n = view.players.length;
@@ -175,16 +175,14 @@ export function ScoreChips({ view, mode }: { view: RoomView; mode: 'score' | 're
             </li>
           );
         }
-        const turn = g?.chooserId === p.id;
         return (
-          <li key={p.id} className={`chip ${turn ? 'on' : ''} ${p.connected ? '' : 'away'}`}>
+          <li key={p.id} className={`chip ${p.connected ? '' : 'away'}`}>
             <Avatar player={p} youId={view.youId} />
             <span className="chip-name">{name}</span>
             <span className="chip-score">
               {p.score}
               <span className="sr-only"> {p.score === 1 ? 'ponto' : 'pontos'}</span>
             </span>
-            {turn && <span className="sr-only">, está na vez</span>}
             {!p.connected && <span className="sr-only">, desconectado</span>}
           </li>
         );

@@ -26,10 +26,10 @@ export type RoomStatus = 'lobby' | 'playing' | 'finished';
 
 /**
  * Etapas de uma rodada:
- * - choosing: quem está na vez escolhe uma palavra da mão
+ * - choosing: qualquer jogador escolhe uma palavra da mão; vale a primeira jogada
  * - thinking: as duas palavras aparecem; cada um aperta "Estou pronto"
  * - countdown: 3, 2, 1… FALEM!
- * - scoring: quem jogou a palavra marca quem combinou
+ * - scoring: o anfitrião marca quem combinou
  * - result: placar da rodada
  */
 export type Phase = 'choosing' | 'thinking' | 'countdown' | 'scoring' | 'result';
@@ -44,8 +44,6 @@ export interface PlayerView {
 
 export interface HandCard {
   word: string;
-  /** Recebida no fim da rodada anterior. */
-  fresh: boolean;
 }
 
 export interface RoundResultView {
@@ -54,8 +52,6 @@ export interface RoundResultView {
   playedWord: string;
   chooserId: string;
   matchedIds: string[];
-  /** Só vem preenchido para quem jogou a palavra: a carta nova que entrou na mão. */
-  replacement: { word: string; replaced: string } | null;
 }
 
 export interface CountdownTiming {
@@ -71,9 +67,8 @@ export interface GameView {
   round: number;
   totalRounds: number;
   phase: Phase;
-  chooserId: string;
-  /** Quem marca os pontos: quem jogou a palavra (ou o anfitrião, se essa pessoa cair). */
-  judgeId: string | null;
+  /** Quem jogou a palavra da rodada (null enquanto ninguém jogou). */
+  chooserId: string | null;
   deckWord: string;
   playedWord: string | null;
   readyIds: string[];
@@ -81,7 +76,6 @@ export interface GameView {
   /** Horário do servidor (ms) em que o "3" aparece. */
   countdownAt: number | null;
   lastResult: RoundResultView | null;
-  nextChooserId: string | null;
 }
 
 export interface RoomView {
@@ -89,7 +83,7 @@ export interface RoomView {
   youId: string;
   /** Quem criou a sala. */
   hostId: string;
-  /** Quem pode iniciar/encerrar: o anfitrião ou, se ele cair, o próximo conectado. */
+  /** Quem pode iniciar/encerrar e marca os pontos: o anfitrião ou, se ele cair, o próximo conectado. */
   adminId: string;
   status: RoomStatus;
   rounds: number;
@@ -131,7 +125,6 @@ export interface ClientToServerEvents {
   'game:mark': (p: { round: number; playerId: string; on: boolean }, reply: Reply) => void;
   'game:confirm': (p: { round: number }, reply: Reply) => void;
   'game:next': (p: { round: number }, reply: Reply) => void;
-  'game:skip': (p: { round: number }, reply: Reply) => void;
   'game:end': (reply: Reply) => void;
   'game:lobby': (reply: Reply) => void;
 }

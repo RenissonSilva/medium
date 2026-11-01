@@ -124,7 +124,6 @@ export class RoomManager {
     );
     socket.on('game:confirm', (p, reply) => this.act(socket, reply, (room, me) => room.confirm(me.id, p?.round)));
     socket.on('game:next', (p, reply) => this.act(socket, reply, (room, me) => room.next(me.id, p?.round)));
-    socket.on('game:skip', (p, reply) => this.act(socket, reply, (room, me) => room.skip(me.id, p?.round)));
     socket.on('game:end', (reply) => this.act(socket, reply, (room, me) => room.end(me.id)));
     socket.on('game:lobby', (reply) => this.act(socket, reply, (room, me) => room.backToLobby(me.id)));
 

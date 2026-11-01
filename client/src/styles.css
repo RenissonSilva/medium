@@ -455,10 +455,6 @@ p {
   transition: background-color 0.2s ease, opacity 0.2s ease;
 }
 
-.chip.on {
-  background: var(--yellow);
-}
-
 .chip.wait {
   background: rgba(255, 253, 247, 0.12);
   color: var(--paper);
@@ -634,19 +630,6 @@ p {
   background: transparent;
   border-style: dashed;
   color: var(--ink-soft);
-}
-
-.mini-tag {
-  flex-shrink: 0;
-  padding: 1px 7px;
-  border-radius: 8px;
-  border: 2px solid var(--ink);
-  background: var(--mint);
-  color: var(--ink);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 /* ——— 01 · início ——————————————————————————————————————————— */
@@ -1202,7 +1185,7 @@ p {
   box-shadow: 0 5px 0 var(--ink);
 }
 
-/* ——— 04 · escolha / 09 · espera ——————————————————————————— */
+/* ——— 04 · escolha —————————————————————————————————————————— */
 
 .deck {
   margin-top: calc(22px * var(--vs));
@@ -1294,91 +1277,6 @@ p {
 
 .tile[aria-pressed='true'] .tile-dot {
   background: var(--ink);
-}
-
-.wait-card {
-  margin-top: calc(26px * var(--vs));
-  flex-shrink: 0;
-  padding: 14px 16px 14px 14px;
-  border-radius: 20px;
-  border: 3px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: 0 5px 0 var(--ink);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.wait-card .avatar {
-  width: 48px;
-  height: 48px;
-  border-width: 3px;
-  font-size: 20px;
-}
-
-.wait-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.wait-title {
-  font-size: 19px;
-  font-weight: 800;
-  line-height: 1.15;
-}
-
-.wait-title .dots {
-  margin-left: 8px;
-  vertical-align: middle;
-}
-
-.wait-sub {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--ink-soft);
-}
-
-.skip-wrap {
-  margin-top: 16px;
-  flex-shrink: 0;
-}
-
-.hand {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hand-chip {
-  max-width: 100%;
-  padding: 8px 12px;
-  border-radius: 14px;
-  border: 3px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: 0 3px 0 var(--ink);
-  font-size: 18px;
-  font-weight: 800;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-}
-
-.hand-chip.fresh {
-  padding-right: 8px;
-}
-
-.hand-chip > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ——— 05 · par revelado ————————————————————————————————————— */
@@ -1753,123 +1651,6 @@ p {
   font-size: 26px;
   font-weight: 800;
   letter-spacing: -0.02em;
-}
-
-.boxes {
-  margin-top: calc(22px * var(--vs));
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.box-dashed,
-.box-paper {
-  min-width: 0;
-  padding: 12px;
-  border-radius: 18px;
-  display: flex;
-  flex-direction: column;
-}
-
-.box-dashed {
-  border: 3px dashed rgba(255, 253, 247, 0.7);
-  background: var(--glass);
-  gap: 10px;
-}
-
-.box-paper {
-  border: 3px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: 0 4px 0 var(--ink);
-  gap: 8px;
-}
-
-.box-label {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.box-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-}
-
-.box-head .box-label {
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  white-space: nowrap;
-}
-
-.box-head .mini-tag {
-  padding: 1px 6px;
-  letter-spacing: 0.04em;
-}
-
-.box-big {
-  font-size: max(20px, calc(26px * var(--vs)));
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
-}
-
-.box-small {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.box-paper .box-small {
-  color: var(--ink-soft);
-}
-
-.gone {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.gone span {
-  max-width: 100%;
-  padding: 3px 9px;
-  border-radius: 10px;
-  border: 3px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  font-weight: 800;
-  text-decoration: line-through;
-  text-decoration-thickness: 3px;
-  text-transform: uppercase;
-  transform: rotate(2deg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gone span:first-child {
-  background: var(--yellow);
-  transform: rotate(-3deg);
-}
-
-.next-line {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.next-line .avatar {
-  width: 24px;
-  height: 24px;
-  font-size: 11px;
 }
 
 .winner {

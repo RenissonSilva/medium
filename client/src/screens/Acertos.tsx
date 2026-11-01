@@ -5,12 +5,12 @@ import { Avatar, BottomBar, GameHeader, PairChips, WaitBox, roundTitle } from '.
 import { nameOf, upper } from '../lib/text';
 import { useGame } from '../state/game';
 
-/** 07 · Quem falou a mesma palavra? Quem jogou a palavra marca; os outros acompanham ao vivo. */
+/** 07 · Quem falou a mesma palavra? O anfitrião marca; os outros acompanham ao vivo. */
 export function Acertos({ view, onMenu }: { view: RoomView; onMenu: () => void }) {
   const { send, toast } = useGame();
   const g = view.game!;
-  const isJudge = g.judgeId === view.youId;
-  const judge = view.players.find((p) => p.id === g.judgeId);
+  const isJudge = view.adminId === view.youId;
+  const judge = view.players.find((p) => p.id === view.adminId);
   // Quem marca vê o toque na hora; o servidor repassa para todo mundo.
   const [local, setLocal] = useState<Set<string>>(() => new Set(g.markedIds));
   const wasJudge = useRef(isJudge);
@@ -56,7 +56,7 @@ export function Acertos({ view, onMenu }: { view: RoomView; onMenu: () => void }
           <p>
             {isJudge
               ? 'Marque quem combinou — cada um ganha 1\u00a0ponto.'
-              : `${judge ? judge.name : 'Quem jogou a palavra'} marca quem combinou — cada um ganha 1\u00a0ponto.`}
+              : `${judge ? judge.name : 'O anfitrião'} marca quem combinou — cada um ganha 1\u00a0ponto.`}
           </p>
         </div>
         <ul className="judge-list" aria-label="Jogadores">

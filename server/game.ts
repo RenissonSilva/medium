@@ -42,8 +42,6 @@ export interface RoomDeps {
 
 interface Card {
   word: string;
-  /** Rodada em que a carta entrou na mão (null = mão inicial). */
-  receivedRound: number | null;
 }
 
 export interface Player {
@@ -64,7 +62,6 @@ interface RoundResult {
   playedWord: string;
   chooserId: string;
   matchedIds: string[];
-  replacement: { playerId: string; word: string; replaced: string } | null;
 }
 
 interface Game {
@@ -72,9 +69,8 @@ interface Game {
   round: number;
   totalRounds: number;
   phase: Phase;
-  /** Ordem da vez. Quem sai continua aqui (é pulado), para a rotação não se perder. */
-  turnOrder: string[];
-  chooserId: string;
+  /** Quem jogou a palavra da rodada (null enquanto ninguém jogou). */
+  chooserId: string | null;
   deckWord: string;
   playedWord: string | null;
   ready: Set<string>;
@@ -124,7 +120,6 @@ export class Room {
   private readonly random: (max: number) => number;
   /** Palavras já vistas nesta sala, para não repetir entre partidas. */
   private readonly usedWords = new Set<string>();
-  private gamesStarted = 0;
   private cancelTimer: (() => void) | null = null;
 
   constructor(code: string, deps: RoomDeps = {}) {
@@ -181,11 +176,8 @@ export class Room {
     };
     this.players.push(player);
     if (!this.find(this.hostId)) this.hostId = player.id;
-    // Quem chega no meio da partida já recebe a mão e entra na fila da vez.
-    if (this.status === 'playing' && this.game) {
-      this.deal(player);
-      this.game.turnOrder.push(player.id);
-    }
+    // Quem chega no meio da partida já recebe a mão.
+    if (this.status === 'playing' && this.game) this.deal(player);
     this.touch();
     return player;
   }
@@ -218,10 +210,6 @@ export class Room {
     if (g && this.status === 'playing') {
       g.ready.delete(playerId);
       g.marked.delete(playerId);
-      if (g.phase === 'choosing' && g.chooserId === playerId) {
-        const next = this.nextChooserId();
-        if (next) g.chooserId = next;
-      }
       this.maybeStartCountdown();
     }
     this.touch();
@@ -237,15 +225,6 @@ export class Room {
 
   requireAdmin(by: string): void {
     if (this.adminId() !== by) throw new GameError('NOT_ALLOWED', 'Só quem criou a sala pode fazer isso.');
-  }
-
-  /** Quem marca os pontos: quem jogou a palavra; se essa pessoa cair, quem administra a sala. */
-  judgeId(): string | null {
-    const g = this.game;
-    if (!g) return null;
-    const chooser = this.find(g.chooserId);
-    if (chooser && this.isConnected(chooser)) return chooser.id;
-    return this.adminId() || null;
   }
 
   setRounds(by: string, rounds: number): void {
@@ -267,18 +246,12 @@ export class Room {
       throw new GameError('NOT_ENOUGH_PLAYERS', 'Chame pelo menos mais uma pessoa para jogar.');
     }
     this.clearTimer();
-    // A cada partida nova, quem começa escolhendo muda.
-    const ids = this.players.map((p) => p.id);
-    const shift = this.gamesStarted % ids.length;
-    const order = [...ids.slice(shift), ...ids.slice(0, shift)];
-    this.gamesStarted += 1;
     this.game = {
       deck: this.buildDeck(),
       round: 0,
       totalRounds: this.rounds,
       phase: 'choosing',
-      turnOrder: order,
-      chooserId: order[0],
+      chooserId: null,
       deckWord: '',
       playedWord: null,
       ready: new Set(),
@@ -292,21 +265,19 @@ export class Room {
       this.deal(p);
     }
     this.status = 'playing';
-    const first = order.find((id) => {
-      const p = this.find(id);
-      return p && this.isConnected(p);
-    });
-    this.beginRound(first ?? order[0]);
+    this.beginRound();
     this.touch();
   }
 
+  /** Qualquer jogador pode jogar uma palavra da mão; vale a primeira que chegar. */
   pick(by: string, round: unknown, word: string): void {
     const g = this.requireStep(round, 'choosing');
-    if (g.chooserId !== by) throw new GameError('NOT_ALLOWED', 'Não é a sua vez de escolher.');
     const player = this.find(by);
-    const idx = player ? player.hand.findIndex((c) => c.word === word) : -1;
-    if (!player || idx < 0) throw new GameError('BAD_INPUT', 'Essa palavra não está na sua mão.');
+    if (!player) throw new GameError('NOT_IN_ROOM', 'Você não está nesta sala.');
+    const idx = player.hand.findIndex((c) => c.word === word);
+    if (idx < 0) throw new GameError('BAD_INPUT', 'Essa palavra não está na sua mão.');
     player.hand.splice(idx, 1);
+    g.chooserId = player.id;
     g.playedWord = word;
     g.ready.clear();
     g.phase = 'thinking';
@@ -322,9 +293,10 @@ export class Room {
     this.maybeStartCountdown();
   }
 
+  /** Quem marca os pontos é sempre quem administra a sala. */
   mark(by: string, round: unknown, playerId: string, on: boolean): void {
     const g = this.requireStep(round, 'scoring');
-    if (this.judgeId() !== by) throw new GameError('NOT_ALLOWED', 'Quem marca os pontos é quem jogou a palavra.');
+    this.requireJudge(by);
     if (!this.find(playerId)) throw new GameError('BAD_INPUT', 'Jogador não encontrado.');
     if (on) g.marked.add(playerId);
     else g.marked.delete(playerId);
@@ -333,26 +305,21 @@ export class Room {
 
   confirm(by: string, round: unknown): void {
     const g = this.requireStep(round, 'scoring');
-    if (this.judgeId() !== by) throw new GameError('NOT_ALLOWED', 'Quem marca os pontos é quem jogou a palavra.');
+    this.requireJudge(by);
     const matched = this.players.filter((p) => g.marked.has(p.id));
     for (const p of matched) p.score += 1;
     // Quem gastou a palavra recebe uma nova do baralho (menos na última rodada).
-    let replacement: RoundResult['replacement'] = null;
     const chooser = this.find(g.chooserId);
     if (chooser && g.round < g.totalRounds) {
       const word = this.draw();
-      if (word) {
-        chooser.hand.push({ word, receivedRound: g.round });
-        replacement = { playerId: chooser.id, word, replaced: g.playedWord ?? '' };
-      }
+      if (word) chooser.hand.push({ word });
     }
     g.lastResult = {
       round: g.round,
       deckWord: g.deckWord,
       playedWord: g.playedWord ?? '',
-      chooserId: g.chooserId,
+      chooserId: g.chooserId ?? '',
       matchedIds: matched.map((p) => p.id),
-      replacement,
     };
     g.phase = 'result';
     this.touch();
@@ -366,20 +333,7 @@ export class Room {
       this.finish();
       return;
     }
-    this.beginRound(this.nextChooserId() ?? g.chooserId);
-    this.touch();
-  }
-
-  /** Passa a vez de quem está escolhendo. O anfitrião sempre pode; os outros, só se essa pessoa caiu. */
-  skip(by: string, round: unknown): void {
-    const g = this.requireStep(round, 'choosing');
-    const chooser = this.find(g.chooserId);
-    const chooserAway = !chooser || !this.isConnected(chooser);
-    if (this.adminId() !== by && !chooserAway) {
-      throw new GameError('NOT_ALLOWED', 'Só quem criou a sala pode pular a vez.');
-    }
-    const next = this.nextChooserId();
-    if (next) g.chooserId = next;
+    this.beginRound();
     this.touch();
   }
 
@@ -427,46 +381,25 @@ export class Room {
         score: p.score,
         connected: this.isConnected(p),
       })),
-      hand: me
-        ? me.hand.map((c) => ({
-            word: c.word,
-            fresh: !!g && c.receivedRound !== null && g.round - c.receivedRound <= 1,
-          }))
-        : [],
-      game: g ? this.gameView(g, playerId) : null,
+      hand: me ? me.hand.map((c) => ({ word: c.word })) : [],
+      game: g ? this.gameView(g) : null,
       timing: this.timing,
       serverNow: this.now(),
     };
   }
 
-  private gameView(g: Game, playerId: string): GameView {
-    const r = g.lastResult;
+  private gameView(g: Game): GameView {
     return {
       round: g.round,
       totalRounds: g.totalRounds,
       phase: g.phase,
       chooserId: g.chooserId,
-      judgeId: this.judgeId(),
       deckWord: g.deckWord,
       playedWord: g.playedWord,
       readyIds: [...g.ready],
       markedIds: [...g.marked],
       countdownAt: g.countdownAt,
-      lastResult: r
-        ? {
-            round: r.round,
-            deckWord: r.deckWord,
-            playedWord: r.playedWord,
-            chooserId: r.chooserId,
-            matchedIds: r.matchedIds,
-            replacement:
-              r.replacement && r.replacement.playerId === playerId
-                ? { word: r.replacement.word, replaced: r.replacement.replaced }
-                : null,
-          }
-        : null,
-      nextChooserId:
-        this.status === 'playing' && g.phase === 'result' && g.round < g.totalRounds ? this.nextChooserId() : null,
+      lastResult: g.lastResult,
     };
   }
 
@@ -513,11 +446,11 @@ export class Room {
     while (player.hand.length < HAND_SIZE) {
       const word = this.draw();
       if (!word) break;
-      player.hand.push({ word, receivedRound: null });
+      player.hand.push({ word });
     }
   }
 
-  private beginRound(chooserId: string): void {
+  private beginRound(): void {
     const g = this.game;
     if (!g) return;
     const word = this.draw();
@@ -526,7 +459,7 @@ export class Room {
       return;
     }
     g.round += 1;
-    g.chooserId = chooserId;
+    g.chooserId = null;
     g.deckWord = word;
     g.playedWord = null;
     g.ready.clear();
@@ -535,22 +468,8 @@ export class Room {
     g.phase = 'choosing';
   }
 
-  /** Próximo na fila que ainda está na sala — de preferência alguém conectado. */
-  private nextChooserId(): string | null {
-    const g = this.game;
-    if (!g || g.turnOrder.length === 0) return null;
-    const order = g.turnOrder;
-    const n = order.length;
-    const start = order.indexOf(g.chooserId);
-    let fallback: string | null = null;
-    for (let k = 1; k <= n; k++) {
-      const id = order[(start + k + n) % n];
-      const p = this.find(id);
-      if (!p) continue;
-      if (this.isConnected(p)) return id;
-      fallback ??= id;
-    }
-    return fallback;
+  private requireJudge(by: string): void {
+    if (this.adminId() !== by) throw new GameError('NOT_ALLOWED', 'Só o anfitrião marca os pontos.');
   }
 
   private requireStep(round: unknown, phase: Phase): Game {

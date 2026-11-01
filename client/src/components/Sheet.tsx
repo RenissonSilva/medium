@@ -50,11 +50,11 @@ export function Rules() {
   return (
     <ol className="rules">
       <li>Uma palavra sai do baralho para todo mundo ver.</li>
-      <li>Quem está na vez escolhe, da própria mão, uma palavra que combine com ela.</li>
+      <li>Cada um escolhe, da própria mão, uma palavra que combine com ela — vale a de quem jogar primeiro.</li>
       <li>Com as duas palavras na tela, cada um pensa numa terceira que ligue as duas.</li>
       <li>Quando todos apertarem “Estou pronto”, vem a contagem: 3, 2, 1… e todo mundo fala ao mesmo tempo!</li>
-      <li>Quem falar a mesma palavra que outra pessoa ganha 1 ponto.</li>
-      <li>As duas palavras saem do jogo, quem jogou recebe uma nova e a vez passa para o próximo.</li>
+      <li>O anfitrião marca quem falou a mesma palavra que outra pessoa — cada um ganha 1 ponto.</li>
+      <li>As duas palavras saem do jogo e quem jogou recebe uma nova.</li>
     </ol>
   );
 }

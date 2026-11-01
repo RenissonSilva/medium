@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { RoomView } from '../../../shared/types';
 import { sound } from '../lib/sound';
-import { nameOf } from '../lib/text';
 import { useGame } from '../state/game';
 import { Icon, type IconName } from './Icon';
 import { QrCard } from './QrCard';
@@ -29,11 +28,10 @@ export function MenuSheet({ view, onClose, initial = 'menu' }: { view: RoomView;
   const g = view.game;
   const isAdmin = view.adminId === view.youId;
   const playing = view.status === 'playing' && !!g;
-  const chooser = view.players.find((p) => p.id === g?.chooserId);
 
-  const run = async (event: 'game:skip' | 'game:end', payload?: object) => {
+  const end = async () => {
     setBusy(true);
-    const res = await send(event, payload);
+    const res = await send('game:end');
     setBusy(false);
     if (!res.ok) toast(res.message, 'error');
     onClose();
@@ -93,7 +91,7 @@ export function MenuSheet({ view, onClose, initial = 'menu' }: { view: RoomView;
           <button type="button" className="btn btn-secondary" onClick={onClose} data-autofocus>
             Continuar jogando
           </button>
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => run('game:end')}>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={end}>
             <Icon name="flag" size={22} />
             <span>Encerrar</span>
           </button>
@@ -116,14 +114,6 @@ export function MenuSheet({ view, onClose, initial = 'menu' }: { view: RoomView;
             setMuted(!muted);
           }}
         />
-        {playing && isAdmin && g.phase === 'choosing' && (
-          <Item
-            icon="skip"
-            tone="paper"
-            label={g.chooserId === view.youId ? 'Passar a minha vez' : `Pular a vez de ${nameOf(chooser, view.youId)}`}
-            onClick={() => run('game:skip', { round: g.round })}
-          />
-        )}
         {playing && isAdmin && <Item icon="flag" tone="pink" label="Encerrar partida" onClick={() => setMode('end')} />}
         <Item icon="logout" tone="pink" label="Sair da sala" onClick={() => setMode('leave')} />
       </div>

@@ -51,19 +51,18 @@ function expectError(fn: () => void, code: ErrorCode) {
   throw new Error(`esperava erro ${code}`);
 }
 
-/** Joga uma rodada inteira: escolhe a 1ª palavra, todos prontos, contagem, marca `matched`. */
-function playRound(ctx: ReturnType<typeof setup>, matched: string[] = []) {
+/** Joga uma rodada inteira: `chooser` joga a 1ª palavra, todos prontos, contagem, o anfitrião marca `matched`. */
+function playRound(ctx: ReturnType<typeof setup>, matched: string[] = [], chooser = ctx.room.connectedPlayers()[0]) {
   const { room, advance } = ctx;
   const g = room.game!;
   const round = g.round;
-  const chooser = room.find(g.chooserId)!;
   const word = chooser.hand[0].word;
   room.pick(chooser.id, round, word);
   for (const p of room.connectedPlayers()) room.setReady(p.id, round, true);
   expect(g.phase).toBe('countdown');
   advance(1000);
   expect(g.phase).toBe('scoring');
-  const judge = room.judgeId()!;
+  const judge = room.adminId();
   for (const id of matched) room.mark(judge, round, id, true);
   room.confirm(judge, round);
   expect(g.phase).toBe('result');
@@ -133,21 +132,24 @@ describe('partida', () => {
     expect(new Set([...all, g.deckWord]).size).toBe(all.length + 1);
     expect(g.round).toBe(1);
     expect(g.phase).toBe('choosing');
-    expect(g.chooserId).toBe(players[0].id);
+    expect(g.chooserId).toBeNull();
   });
 
-  it('só quem está na vez escolhe, e só palavra da própria mão', () => {
+  it('qualquer um joga uma palavra da própria mão, e vale a primeira', () => {
     const { room, players } = setup(3);
     room.start(players[0].id);
     const g = room.game!;
-    expectError(() => room.pick(players[1].id, 1, players[1].hand[0].word), 'NOT_ALLOWED');
     expectError(() => room.pick(players[0].id, 1, players[1].hand[0].word), 'BAD_INPUT');
-    const word = players[0].hand[2].word;
-    room.pick(players[0].id, 1, word);
+    const word = players[1].hand[2].word;
+    room.pick(players[1].id, 1, word);
     expect(g.playedWord).toBe(word);
+    expect(g.chooserId).toBe(players[1].id);
     expect(g.phase).toBe('thinking');
-    expect(players[0].hand.map((c) => c.word)).not.toContain(word);
-    expect(players[0].hand).toHaveLength(HAND_SIZE - 1);
+    expect(players[1].hand.map((c) => c.word)).not.toContain(word);
+    expect(players[1].hand).toHaveLength(HAND_SIZE - 1);
+    // Quem confirmou depois chega tarde: a mão continua igual.
+    expectError(() => room.pick(players[0].id, 1, players[0].hand[0].word), 'BAD_STATE');
+    expect(players[0].hand).toHaveLength(HAND_SIZE);
   });
 
   it('a contagem começa quando todos estão prontos e vira marcação sozinha', () => {
@@ -184,38 +186,39 @@ describe('partida', () => {
     expect(g.phase).toBe('countdown');
   });
 
-  it('marca pontos, repõe a palavra de quem jogou e passa a vez', () => {
+  it('marca pontos, repõe a palavra de quem jogou e abre a próxima rodada para todos', () => {
     const ctx = setup(3);
     const { room, players } = ctx;
     room.start(players[0].id);
-    const { chooser } = playRound(ctx, [players[0].id, players[1].id]);
+    const before = players[2].hand.map((c) => c.word);
+    const { word } = playRound(ctx, [players[0].id, players[1].id], players[2]);
     expect(players.map((p) => p.score)).toEqual([1, 1, 0]);
-    expect(chooser.hand).toHaveLength(HAND_SIZE);
-    const view = room.viewFor(chooser.id);
-    expect(view.game!.lastResult!.replacement).not.toBeNull();
-    expect(view.hand.filter((c) => c.fresh)).toHaveLength(1);
-    // Os outros não ficam sabendo qual palavra entrou.
-    expect(room.viewFor(players[1].id).game!.lastResult!.replacement).toBeNull();
-    expect(view.game!.nextChooserId).toBe(players[1].id);
-    room.next(players[2].id, 1);
+    expect(players[2].hand).toHaveLength(HAND_SIZE);
+    expect(players[2].hand.map((c) => c.word)).not.toContain(word);
+    expect(players[2].hand.filter((c) => !before.includes(c.word))).toHaveLength(1);
+    expect(room.game!.lastResult!.chooserId).toBe(players[2].id);
+    room.next(players[1].id, 1);
     expect(room.game!.round).toBe(2);
-    expect(room.game!.chooserId).toBe(players[1].id);
+    expect(room.game!.phase).toBe('choosing');
+    expect(room.game!.chooserId).toBeNull();
   });
 
-  it('só quem jogou a palavra marca os pontos', () => {
+  it('só o anfitrião marca os pontos, mesmo quando outra pessoa jogou a palavra', () => {
     const ctx = setup(3);
     const { room, players, advance } = ctx;
     room.start(players[0].id);
-    room.pick(players[0].id, 1, players[0].hand[0].word);
+    room.pick(players[1].id, 1, players[1].hand[0].word);
     for (const p of players) room.setReady(p.id, 1, true);
     advance(1000);
     expectError(() => room.mark(players[1].id, 1, players[1].id, true), 'NOT_ALLOWED');
-    // Se quem jogou cair, o anfitrião (ou o próximo conectado) assume.
+    expectError(() => room.confirm(players[1].id, 1), 'NOT_ALLOWED');
+    room.mark(players[0].id, 1, players[2].id, true);
+    // Se o anfitrião cair, o próximo conectado assume.
     room.detach('sock-0');
-    expect(room.judgeId()).toBe(players[1].id);
-    room.mark(players[1].id, 1, players[2].id, true);
+    expect(room.adminId()).toBe(players[1].id);
+    room.mark(players[1].id, 1, players[1].id, true);
     room.confirm(players[1].id, 1);
-    expect(players[2].score).toBe(1);
+    expect(players.map((p) => p.score)).toEqual([0, 1, 1]);
   });
 
   it('dois toques em "próxima rodada" não pulam uma rodada', () => {
@@ -238,11 +241,13 @@ describe('partida', () => {
     seen.add(g.deckWord);
     let finished = false;
     for (let r = 1; r <= 20; r++) {
-      const { round } = playRound(ctx, [players[r % 4].id]);
-      const replacement = g.lastResult!.replacement;
-      if (replacement) {
-        expect(seen.has(replacement.word)).toBe(false);
-        seen.add(replacement.word);
+      const chooser = players[r % 4];
+      const before = chooser.hand.map((c) => c.word);
+      const { round } = playRound(ctx, [players[(r + 1) % 4].id], chooser);
+      for (const c of chooser.hand) {
+        if (before.includes(c.word)) continue;
+        expect(seen.has(c.word)).toBe(false);
+        seen.add(c.word);
       }
       room.next(players[0].id, round);
       if (room.status === 'finished') {
@@ -255,7 +260,6 @@ describe('partida', () => {
     expect(finished).toBe(true);
     expect(g.round).toBe(20);
     expect(players.reduce((sum, p) => sum + p.score, 0)).toBe(20);
-    // Cada um escolheu 5 vezes.
   });
 
   it('acaba depois do número de rodadas escolhido', () => {
@@ -265,8 +269,9 @@ describe('partida', () => {
     expectError(() => room.setRounds(players[0].id, 7), 'BAD_INPUT');
     room.start(players[0].id);
     for (let r = 1; r <= 5; r++) {
-      const { round } = playRound(ctx);
-      if (r === 5) expect(room.game!.lastResult!.replacement).toBeNull();
+      const { round, chooser } = playRound(ctx);
+      // Na última rodada ninguém recebe palavra nova.
+      expect(chooser.hand).toHaveLength(r === 5 ? HAND_SIZE - 1 : HAND_SIZE);
       room.next(players[1].id, round);
     }
     expect(room.status).toBe('finished');
@@ -275,32 +280,27 @@ describe('partida', () => {
     expect(room.game).toBeNull();
   });
 
-  it('quem está na vez saindo passa a vez; anfitrião saindo passa o posto', () => {
-    const { room, players } = setup(3);
+  it('anfitrião saindo passa o posto; quem jogou saindo não trava a rodada', () => {
+    const { room, players, advance } = setup(3);
     room.start(players[0].id);
+    room.pick(players[2].id, 1, players[2].hand[0].word);
     room.leave(players[0].id);
     expect(room.hostId).toBe(players[1].id);
-    expect(room.game!.chooserId).toBe(players[1].id);
-    expect(room.game!.phase).toBe('choosing');
+    room.leave(players[2].id);
+    room.setReady(players[1].id, 1, true);
+    advance(1000);
+    room.confirm(players[1].id, 1);
+    expect(room.game!.phase).toBe('result');
   });
 
-  it('pular a vez: anfitrião sempre; outros só se quem escolhe caiu', () => {
-    const { room, players } = setup(3);
-    room.start(players[0].id);
-    room.skip(players[0].id, 1);
-    expect(room.game!.chooserId).toBe(players[1].id);
-    expectError(() => room.skip(players[2].id, 1), 'NOT_ALLOWED');
-    room.detach('sock-1');
-    room.skip(players[2].id, 1);
-    expect(room.game!.chooserId).toBe(players[2].id);
-  });
-
-  it('quem entra no meio recebe mão e entra na fila', () => {
+  it('quem entra no meio recebe mão e já pode jogar', () => {
     const { room, players } = setup(2);
     room.start(players[0].id);
     const late = room.join('client-late-abcdef', 'Duda');
+    room.attach(late, 'sock-late');
     expect(late.hand).toHaveLength(HAND_SIZE);
-    expect(room.game!.turnOrder).toContain(late.id);
+    room.pick(late.id, 1, late.hand[0].word);
+    expect(room.game!.chooserId).toBe(late.id);
   });
 
   it('a visão de cada um não mostra a mão dos outros', () => {

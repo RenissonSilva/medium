@@ -9,7 +9,6 @@ import { Carregando } from './screens/Carregando';
 import { Contagem } from './screens/Contagem';
 import { Entrar } from './screens/Entrar';
 import { Escolha } from './screens/Escolha';
-import { Espera } from './screens/Espera';
 import { Fim } from './screens/Fim';
 import { Inicio } from './screens/Inicio';
 import { Par } from './screens/Par';
@@ -25,7 +24,7 @@ function roomScreen(view: RoomView, onMenu: () => void): [string, ReactNode] {
   if (view.status === 'finished' || !g) return ['fim', <Fim {...props} />];
   switch (g.phase) {
     case 'choosing':
-      return g.chooserId === view.youId ? [`escolha-${g.round}`, <Escolha {...props} />] : [`espera-${g.round}`, <Espera {...props} />];
+      return [`escolha-${g.round}`, <Escolha {...props} />];
     case 'thinking':
       return [`par-${g.round}`, <Par {...props} />];
     case 'countdown':
